@@ -2958,6 +2958,148 @@ COMMAND_HANDLER(aarch64_mask_interrupts_command)
 	return ERROR_OK;
 }
 
+static int jim_msrmrs(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
+{
+	struct command_context *context;
+	struct target *target;
+	struct arm *arm;
+	uint64_t retval;
+	bool is_msr = false;
+	int arg_cnt = 0;
+
+	if (Jim_CompareStringImmediate(interp, argv[0], "msr")) {
+		is_msr = true;
+		arg_cnt = 7;
+	} else {
+		arg_cnt = 6;
+	}
+
+	context = current_command_context(interp);
+	assert(context != NULL);
+
+	target = get_current_target(context);
+	if (target == NULL) {
+		LOG_ERROR("%s: no current target", __func__);
+		return JIM_ERR;
+	}
+	if (!target_was_examined(target)) {
+		LOG_ERROR("%s: not yet examined", target_name(target));
+		return JIM_ERR;
+	}
+
+	arm = target_to_arm(target);
+	if (!is_arm(arm)) {
+		LOG_ERROR("%s: not an ARM", target_name(target));
+		return JIM_ERR;
+	}
+
+	if (target->state != TARGET_HALTED)
+		return ERROR_TARGET_NOT_HALTED;
+
+	if (arm->core_state != ARM_STATE_AARCH64) {
+		LOG_ERROR("%s: not 64-bit arm target", target_name(target));
+		return JIM_ERR;
+	}
+
+	if (argc != arg_cnt) {
+		LOG_ERROR("%s: wrong number of arguments", __func__);
+		return JIM_ERR;
+	}
+
+	uint32_t op0;
+	uint32_t op1;
+	uint32_t op2;
+	uint32_t CRn;
+	uint32_t CRm;
+	uint32_t value;
+	uint64_t value_64;
+	long l;
+
+	/* NOTE:  parameter sequence matches ARM instruction set usage:
+	 *	MSR	op0, op1, CRn, CRm, op2	; write CP from rX
+	 *	MRS	op0, op1, CRn, CRm, op2	; read CP into rX
+	 * The "rX" is necessarily omitted; it uses Tcl mechanisms.
+	 */
+	retval = Jim_GetLong(interp, argv[1], &l);
+	if (retval != JIM_OK)
+		return retval;
+	if (l & ~0x3) {
+		LOG_ERROR("%s: %s %d out of range", __func__,
+			"op0", (int) l);
+		return JIM_ERR;
+	}
+	op0 = l;
+
+	retval = Jim_GetLong(interp, argv[2], &l);
+	if (retval != JIM_OK)
+		return retval;
+	if (l & ~0x7) {
+		LOG_ERROR("%s: %s %d out of range", __func__,
+			"op1", (int) l);
+		return JIM_ERR;
+	}
+	op1 = l;
+
+	retval = Jim_GetLong(interp, argv[3], &l);
+	if (retval != JIM_OK)
+		return retval;
+	if (l & ~0xf) {
+		LOG_ERROR("%s: %s %d out of range", __func__,
+			"CRn", (int) l);
+		return JIM_ERR;
+	}
+	CRn = l;
+
+	retval = Jim_GetLong(interp, argv[4], &l);
+	if (retval != JIM_OK)
+		return retval;
+	if (l & ~0xf) {
+		LOG_ERROR("%s: %s %d out of range", __func__,
+			"CRm", (int) l);
+		return JIM_ERR;
+	}
+	CRm = l;
+
+	retval = Jim_GetLong(interp, argv[5], &l);
+	if (retval != JIM_OK)
+		return retval;
+	if (l & ~0x7) {
+		LOG_ERROR("%s: %s %d out of range", __func__,
+			"op2", (int) l);
+		return JIM_ERR;
+	}
+	op2 = l;
+
+		LOG_DEBUG("MRS op0 = %d, op1 = %d, CRn = %d, CRm = %d, op2 = %d", (int)op0,
+		(int) op1, (int) CRn,
+		(int) CRm, (int) op2);
+	value = 0;
+
+	if (is_msr == true) {
+		retval = Jim_GetLong(interp, argv[6], &l);
+		if (retval != JIM_OK)
+			return retval;
+		value_64 = l;
+
+		/* NOTE: parameters reordered! */
+		/* ARMV4_5_MCR(cpnum, op1, 0, CRn, CRm, op2) */
+		retval = arm->msr(target, op0, op1, op2, CRn, CRm, value_64);
+		if (retval != ERROR_OK)
+			return JIM_ERR;
+	} else {
+		/* NOTE: parameters reordered! */
+		/* ARMV4_5_MRC(cpnum, op1, 0, CRn, CRm, op2) */
+		retval = arm->mrs(target,op0,op1,CRn,CRm,op2,&value_64);
+		if (retval != ERROR_OK)
+			return JIM_ERR;
+		LOG_INFO("System register value = %lx\n", value_64);
+
+		Jim_SetResult(interp, Jim_NewIntObj(interp, value));
+	}
+
+	return JIM_OK;
+}
+
 static int jim_mcrmrc(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
 {
 	struct command *c = jim_to_command(interp);
@@ -3138,6 +3280,20 @@ static const struct command_registration aarch64_exec_command_handlers[] = {
 		.jim_handler = jim_mcrmrc,
 		.help = "read coprocessor register",
 		.usage = "cpnum op1 CRn CRm op2",
+	},
+	{
+		.name = "msr",
+		.mode = COMMAND_EXEC,
+		.jim_handler = jim_msrmrs,
+		.help = "write aarch64 coprocessor register, values should be binary, but reg val in HEX",
+		.usage = "op0 op1 CRn CRm op2 value",
+	},
+	{
+		.name = "mrs",
+		.mode = COMMAND_EXEC,
+		.jim_handler = jim_msrmrs,
+		.help = "read aarch64 coprocessor register, values should be binary",
+		.usage = "op0 op1 CRn CRm op2",
 	},
 	{
 		.chain = smp_command_handlers,
