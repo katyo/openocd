@@ -237,6 +237,18 @@ struct arm {
 			uint32_t CRn, uint32_t CRm,
 			uint32_t value);
 
+	/** Read coprocessor register in aarch64 state  */
+	int (*mrs)(struct target *target, uint32_t op0,
+			uint32_t op1, uint32_t CRn,
+			uint32_t CRm, uint32_t op2,
+			uint64_t *value);
+
+	/** Write coprocessor register in aarch64 state  */
+	int (*msr)(struct target *target, uint32_t op0,
+			uint32_t op1, uint32_t CRn,
+			uint32_t CRm, uint32_t op2,
+			uint64_t value);
+
 	void *arch_info;
 
 	/** For targets conforming to ARM Debug Interface v5,

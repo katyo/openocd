@@ -1,0 +1,57 @@
+Here is a short description of OpenOCD for Baikal-M.
+
+OpenOCD
+---------
+
+Current version has been tested only with Olimex ARM-USB-OCD-H debugger, 
+we don't provide any warranty about how it will works with other 
+debuggers. Baikal-M config file is based on Juno devboard config, 
+because they have similar Coresight architecture. By default OpenOCD 
+connects to the Core #0, but you able to uncomment strings in baikal_m.cfg
+with other cores. Also please check that your board has "correct" 
+XP44 connector, in other cases Olimex will not connect to the 
+board. Best marker of this trouble is that you receives different
+TAP ID from board. If you have this kind of trouble, please
+connect with Baikal Electronics customer support.
+
+Start working:
+1) Compile OpenOCD like in official OpenOCD guide.
+
+2) Execute "pwr_on" command on BMC console. Coresight subsystem
+should works, otherwise Olimex will not connect.
+
+3) Start OpenOCD by next command:
+  # sudo ./openocd -f ../tcl/interface/ftdi/olimex-arm-usb-ocd-h.cfg -f ../tcl/target/baikal_m.cfg 
+(Be carefull with paths to the openocd and *.cfg files!)
+
+4) In case of success connection you will receive next output:
+
+  | Open On-Chip Debugger 0.10.0+dev-g7d9eb10-dirty (2019-12-04-19:51)
+  | Licensed under GNU GPL v2
+  | For bug reports, read
+  | 	http://openocd.org/doc/doxygen/bugs.html
+  | adapter speed: 1000 kHz
+  | debug_level: 2
+  | a57.cpu0
+  | Info : Listening on port 6666 for tcl connections
+  | Info : Listening on port 4444 for telnet connections
+  | Info : clock speed 1000 kHz
+  | Info : JTAG tap: armv8.cpu tap/device found: 0x6ba00477 (mfg: 0x23b (ARM Ltd.), part: 0xba00, ver: 0x6)
+  | Info : a57.cpu0: hardware has 6 breakpoints, 4 watchpoints
+  | Info : Listening on port 3333 for gdb connections
+
+5) Start debugging with OpenOCD.
+  Telnet connection:
+	telnet localhost 4444
+
+About GDB
+---------
+aarch64-gdb from SDK/xtools works with OpenOCD, you need to start GDB with debug symbol files and then
+execute next command inside GDB:
+  # target remote :3333
+Please use GDB original Documentation.
+
+Also we have tested GUI for GDB(kgdb) it works not so bad. Please change path to gdb inside kgdb and then
+use next string for starting this app:
+  # kdbg -r localhost:3333 vmlinux
+Instead of vmlinux you should use your debug symbols file for gdb.
