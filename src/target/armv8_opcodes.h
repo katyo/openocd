@@ -138,6 +138,12 @@
 #define ARMV8_ISB_SY_T1				0xf3bf8f6f
 
 #define ARMV8_MRS(System, Rt)	(0xd5300000 | ((System) << 5) | (Rt))
+
+#define ARMV8_MRS_RAW(op0, op1, CRn, CRm, op2, Rt) \
+	(0xd5300000 | (((op0 << 14) | (op1 << 11) | (CRn << 7) | (CRm << 3) | (op2)) << 5) | (Rt))
+#define ARMV8_MSR_RAW(op0, op1, CRn, CRm, op2, Rt) \
+	(0xd5100000 | (((op0 << 14) | (op1 << 11) | (CRn << 7) | (CRm << 3) | (op2)) << 5) | (Rt))
+
 /* ARM V8 Move to system register. */
 #define ARMV8_MSR_GP(System, Rt) \
 	(0xd5100000 | ((System) << 5) | (Rt))
